@@ -16,92 +16,62 @@
         color: #fff;
         touch-action: none; 
     }
-    
-    /* El contenedor usa height dinámico para no esconder cosas debajo de la barra del navegador */
     #main-container { 
-        display: flex; 
-        width: 100vw; 
-        height: 100vh; 
-        height: 100dvh; 
-        flex-direction: column;
+        display: flex; width: 100vw; height: 100vh; height: 100dvh; flex-direction: column;
     }
-    
-    @media (min-width: 768px) {
-        #main-container { flex-direction: row; }
-    }
+    @media (min-width: 768px) { #main-container { flex-direction: row; } }
 
-    /* --- CONTENEDOR DE CÁMARA --- */
+    /* --- CAPA DE VIDEO TRANSPARENTE ULTRA-RÁPIDA --- */
     #video-container { 
         position: relative; 
-        flex: 1; /* Toma la mitad superior o todo si es pantalla completa */
-        min-height: 40%;
-        background: transparent; 
-        overflow: hidden; 
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        flex: 1; min-height: 40%; background: #000; 
+        overflow: hidden; display: flex; justify-content: center; align-items: center;
         transition: all 0.3s ease;
     }
     
-    canvas { 
-        width: 100%; height: 100%; object-fit: contain; display: block; 
-        transform: scaleX(-1) translateZ(0); 
-        will-change: transform; 
-    }
-    video { display: none; }
-    
-    /* BOTÓN PANTALLA COMPLETA FLOTANTE */
-    .btn-fullscreen {
+    /* El video nativo y el lienzo se superponen exactamente */
+    video, canvas { 
         position: absolute;
-        bottom: 15px;
-        right: 15px;
-        z-index: 20;
-        background: rgba(20, 20, 20, 0.7);
-        backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
-        border: 1px solid rgba(212, 175, 55, 0.5);
-        color: #d4af37;
-        padding: 8px 15px;
-        border-radius: 20px;
-        cursor: pointer;
-        font-size: 10px;
-        text-transform: uppercase;
-        font-weight: bold;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        transition: 0.3s;
+        width: 100%; height: 100%; 
+        object-fit: contain; /* Garantiza que encajen perfectos */
+        display: block;
+        transform: scaleX(-1) translateZ(0); /* Espejo por defecto y GPU */
+        will-change: transform;
+    }
+    /* El lienzo ahora es transparente, solo muestra uñas */
+    canvas { background: transparent; pointer-events: none; z-index: 2; }
+    video { z-index: 1; } /* El video se muestra debajo */
+
+    /* Desactivar espejo para cámara trasera */
+    video.rear-camera, canvas.rear-camera { transform: scaleX(1) translateZ(0); }
+    
+    /* BOTÓN PANTALLA COMPLETA */
+    .btn-fullscreen {
+        position: absolute; bottom: 15px; right: 15px; z-index: 20;
+        background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        border: 1px solid rgba(212, 175, 55, 0.5); color: #d4af37; padding: 8px 15px; border-radius: 20px;
+        cursor: pointer; font-size: 10px; text-transform: uppercase; font-weight: bold;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.3s;
     }
     .btn-fullscreen:active { transform: scale(0.95); background: rgba(212, 175, 55, 0.2); }
 
-    /* ESTADO PANTALLA COMPLETA ACTIVA */
     body.fullscreen-active #sidebar { display: none !important; }
     body.fullscreen-active #video-container { height: 100dvh !important; flex: none; }
 
-    /* --- BARRA LATERAL (Mitad inferior en móvil) --- */
+    /* --- BARRA LATERAL --- */
     #sidebar { 
-        width: 100%; 
-        height: 55%; /* Altura en móvil */
-        background: rgba(20, 20, 20, 0.85); 
-        backdrop-filter: blur(15px) saturate(150%); -webkit-backdrop-filter: blur(15px) saturate(150%);
-        display: flex; flex-direction: column; 
-        border-top: 1px solid rgba(255, 255, 255, 0.1); 
-        z-index: 10; 
-        transition: all 0.3s ease;
+        width: 100%; height: 55%; 
+        background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(15px) saturate(150%); -webkit-backdrop-filter: blur(15px) saturate(150%);
+        display: flex; flex-direction: column; border-top: 1px solid rgba(255, 255, 255, 0.1); 
+        z-index: 10; transition: all 0.3s ease;
     }
+    @media (min-width: 768px) { #sidebar { width: 440px; height: 100%; border-left: 1px solid rgba(255, 255, 255, 0.1); border-top: none; } }
     
-    @media (min-width: 768px) {
-        #sidebar { width: 440px; height: 100%; border-left: 1px solid rgba(255, 255, 255, 0.1); border-top: none; }
-    }
-    
-    /* El catálogo toma el espacio sobrante y hace scroll internamente */
-    #catalog-text { 
-        flex: 1; 
-        padding: 20px; 
-        overflow-y: auto; 
-        -webkit-overflow-scrolling: touch; 
-    }
+    #catalog-text { flex: 1; padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 768px) { #catalog-text { padding: 15px; } }
     #catalog-text::-webkit-scrollbar { display: none; }
 
-    /* --- SECCIONES Y HERRAMIENTAS --- */
+    /* --- HERRAMIENTAS --- */
     .tools-container { 
         display: flex; flex-direction: column; gap: 12px; 
         background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
@@ -143,22 +113,17 @@
     }
     .design-link:active { background: rgba(212, 175, 55, 0.3); color: #fff; }
 
-    /* --- EL BUSCADOR RECUPERADO Y ANCLADO --- */
+    /* --- BUSCADOR ANCLADO --- */
     #chat-area { 
-        flex-shrink: 0; /* IMPIDE que se aplaste o desaparezca */
-        background: rgba(10, 10, 10, 0.95); 
-        padding: 15px; 
-        padding-bottom: calc(15px + env(safe-area-inset-bottom)); /* Espacio extra para la línea de iPhone */
-        border-top: 1px solid rgba(255, 255, 255, 0.1); 
+        flex-shrink: 0; background: rgba(10, 10, 10, 0.95); padding: 15px; 
+        padding-bottom: calc(15px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255, 255, 255, 0.1); 
     }
     .chat-input-box { display: flex; gap: 10px; }
     input[type="text"] { 
         flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); 
         color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; 
     }
-    #chat-area button {
-        background: #d4af37; color: #000; font-weight: bold; border: none; padding: 0 15px; border-radius: 12px; cursor: pointer;
-    }
+    #chat-area button { background: #d4af37; color: #000; font-weight: bold; border: none; padding: 0 15px; border-radius: 12px; cursor: pointer; }
     
     /* Marca */
     #brand { position: absolute; top: 15px; left: 15px; z-index: 10; pointer-events: none; }
@@ -174,7 +139,7 @@
         
         <button id="fullBtn" class="btn-fullscreen" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
         
-        <video id="vid" playsinline></video>
+        <video id="vid" autoplay muted playsinline></video>
         <canvas id="canv"></canvas>
     </div>
 
@@ -262,7 +227,6 @@
 </div>
 
 <script>
-    // --- LÓGICA PANTALLA COMPLETA ---
     let isFullscreen = false;
     function toggleFullscreen() {
         isFullscreen = !isFullscreen;
@@ -270,7 +234,7 @@
         if(isFullscreen) {
             document.body.classList.add('fullscreen-active');
             btn.innerText = "✖ Cerrar Diseño";
-            btn.style.background = "rgba(180, 0, 0, 0.6)"; // Rojo suave al cerrar
+            btn.style.background = "rgba(180, 0, 0, 0.6)"; 
             btn.style.borderColor = "transparent";
             btn.style.color = "#fff";
         } else {
@@ -282,7 +246,6 @@
         }
     }
 
-    // --- LÓGICA EXISTENTE ---
     let conf = { c: "#800020", m: "solid", l: 1.5 };
     let uploadedImage = new Image();
     let isImageReady = false;
@@ -305,10 +268,7 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 uploadedImage = new Image();
-                uploadedImage.onload = function() {
-                    isImageReady = true;
-                    conf.m = 'custom_image';
-                }
+                uploadedImage.onload = function() { isImageReady = true; conf.m = 'custom_image'; }
                 uploadedImage.src = e.target.result;
             }
             reader.readAsDataURL(file);
@@ -334,11 +294,10 @@
 
     const v = document.getElementById('vid');
     const c = document.getElementById('canv');
-    const ctx = c.getContext('2d', { willReadFrequently: true });
+    // Mantenemos el contexto estándar (el fondo transparente es vital aquí)
+    const ctx = c.getContext('2d');
 
     const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
-    
-    // IA OPTIMIZADA - Model Complexity 0
     hands.setOptions({ 
         maxNumHands: 1, 
         modelComplexity: 0, 
@@ -347,9 +306,12 @@
     });
 
     hands.onResults((res) => {
+        // Emparejamos resoluciones para que lienzo y video encajen perfecto
         c.width = v.videoWidth; c.height = v.videoHeight;
-        ctx.save();
-        ctx.drawImage(res.image, 0, 0, c.width, c.height);
+        
+        // LA MAGIA DE LA FLUIDEZ: En lugar de dibujar el video, limpiamos el cristal.
+        // El video corre por debajo a máxima velocidad nativa.
+        ctx.clearRect(0, 0, c.width, c.height);
         
         if (res.multiHandLandmarks && res.multiHandLandmarks[0]) {
             const hand = res.multiHandLandmarks[0];
@@ -363,7 +325,6 @@
                 drawPhotorealNail(tx, ty, dist * 0.7, dist * conf.l, angle + Math.PI/2);
             });
         }
-        ctx.restore();
     });
 
     function drawPhotorealNail(x, y, w, h, rot) {
@@ -372,9 +333,7 @@
         ctx.rotate(rot);
         ctx.translate(0, -h * 0.05);
 
-        // SOMBRAS APAGADAS PARA RENDIMIENTO
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
+        ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
 
         ctx.beginPath();
         ctx.moveTo(-w/2, 0);
@@ -409,38 +368,40 @@
         }
 
         const volumeGrad = ctx.createRadialGradient(0, -h/4, w/4, 0, 0, w);
-        volumeGrad.addColorStop(0, "transparent");
-        volumeGrad.addColorStop(1, "rgba(0,0,0,0.5)");
-        ctx.fillStyle = volumeGrad;
-        ctx.fill();
+        volumeGrad.addColorStop(0, "transparent"); volumeGrad.addColorStop(1, "rgba(0,0,0,0.5)");
+        ctx.fillStyle = volumeGrad; ctx.fill();
 
         ctx.beginPath();
         ctx.ellipse(-w/6, -h/2, w/8, h/3, Math.PI/12, 0, Math.PI * 2);
         const shineGrad = ctx.createLinearGradient(-w/6, -h, -w/6, 0);
-        shineGrad.addColorStop(0, "rgba(255,255,255,0.7)");
-        shineGrad.addColorStop(1, "rgba(255,255,255,0.0)");
-        ctx.fillStyle = shineGrad;
-        ctx.fill();
+        shineGrad.addColorStop(0, "rgba(255,255,255,0.7)"); shineGrad.addColorStop(1, "rgba(255,255,255,0.0)");
+        ctx.fillStyle = shineGrad; ctx.fill();
 
         if (conf.m === "cromo") {
             const chromeGrad = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2);
-            chromeGrad.addColorStop(0, "rgba(255,255,255,0.6)");
-            chromeGrad.addColorStop(0.5, "transparent");
-            chromeGrad.addColorStop(1, "rgba(0,0,0,0.4)");
+            chromeGrad.addColorStop(0, "rgba(255,255,255,0.6)"); chromeGrad.addColorStop(0.5, "transparent"); chromeGrad.addColorStop(1, "rgba(0,0,0,0.4)");
             ctx.fillStyle = chromeGrad; ctx.fill();
         }
 
         ctx.restore();
     }
 
-    // --- LÓGICA DE CÁMARA ---
+    // --- LÓGICA DE CÁMARA (ESPEJO DINÁMICO) ---
     let isFrontCamera = true;
     let cameraInstance = null;
 
     function startCamera() {
         if (cameraInstance) { cameraInstance.stop(); }
         const mode = isFrontCamera ? 'user' : 'environment';
-        c.style.transform = isFrontCamera ? "scaleX(-1) translateZ(0)" : "scaleX(1) translateZ(0)";
+        
+        // El espejo se aplica tanto al reproductor de video como al lienzo transparente
+        if(isFrontCamera) {
+            v.classList.remove('rear-camera');
+            c.classList.remove('rear-camera');
+        } else {
+            v.classList.add('rear-camera');
+            c.classList.add('rear-camera');
+        }
 
         cameraInstance = new Camera(v, {
             onFrame: async () => { await hands.send({image: v}); },
