@@ -2,178 +2,168 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>AuraSens Pro - Virtual Studio</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
     /* --- FONDOS Y ESTRUCTURA BASE --- */
     body { 
-        margin: 0; 
+        margin: 0; padding: 0;
         background: radial-gradient(circle at top right, #1a0b2e, #000000); 
         overflow: hidden; 
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-        color: #fff; 
+        color: #fff;
+        touch-action: none; 
     }
-    #main-container { display: flex; width: 100vw; height: 100vh; }
-    #video-container { position: relative; flex: 1; background: transparent; overflow: hidden; }
     
-    /* OPTIMIZACIÓN CSS: will-change ayuda al celular a procesar el video más rápido */
+    /* El contenedor usa height dinámico para no esconder cosas debajo de la barra del navegador */
+    #main-container { 
+        display: flex; 
+        width: 100vw; 
+        height: 100vh; 
+        height: 100dvh; 
+        flex-direction: column;
+    }
+    
+    @media (min-width: 768px) {
+        #main-container { flex-direction: row; }
+    }
+
+    /* --- CONTENEDOR DE CÁMARA --- */
+    #video-container { 
+        position: relative; 
+        flex: 1; /* Toma la mitad superior o todo si es pantalla completa */
+        min-height: 40%;
+        background: transparent; 
+        overflow: hidden; 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+    
     canvas { 
-        width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); display: block; 
-        will-change: transform;
+        width: 100%; height: 100%; object-fit: contain; display: block; 
+        transform: scaleX(-1) translateZ(0); 
+        will-change: transform; 
     }
     video { display: none; }
     
-    /* --- BARRA LATERAL DE CRISTAL --- */
+    /* BOTÓN PANTALLA COMPLETA FLOTANTE */
+    .btn-fullscreen {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        z-index: 20;
+        background: rgba(20, 20, 20, 0.7);
+        backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        border: 1px solid rgba(212, 175, 55, 0.5);
+        color: #d4af37;
+        padding: 8px 15px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 10px;
+        text-transform: uppercase;
+        font-weight: bold;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        transition: 0.3s;
+    }
+    .btn-fullscreen:active { transform: scale(0.95); background: rgba(212, 175, 55, 0.2); }
+
+    /* ESTADO PANTALLA COMPLETA ACTIVA */
+    body.fullscreen-active #sidebar { display: none !important; }
+    body.fullscreen-active #video-container { height: 100dvh !important; flex: none; }
+
+    /* --- BARRA LATERAL (Mitad inferior en móvil) --- */
     #sidebar { 
-        width: 440px; 
-        background: rgba(20, 20, 20, 0.65); 
-        backdrop-filter: blur(25px) saturate(180%); -webkit-backdrop-filter: blur(25px) saturate(180%);
-        display: flex; 
-        flex-direction: column; 
-        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        width: 100%; 
+        height: 55%; /* Altura en móvil */
+        background: rgba(20, 20, 20, 0.85); 
+        backdrop-filter: blur(15px) saturate(150%); -webkit-backdrop-filter: blur(15px) saturate(150%);
+        display: flex; flex-direction: column; 
+        border-top: 1px solid rgba(255, 255, 255, 0.1); 
         z-index: 10; 
-        box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        transition: all 0.3s ease;
     }
     
-    /* --- ADAPTACIÓN PARA MÓVILES --- */
-    @media (max-width: 768px) {
-        #main-container { flex-direction: column; }
-        #video-container { height: 45vh; flex: none; }
-        #sidebar { width: 100%; height: 55vh; border-left: none; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    @media (min-width: 768px) {
+        #sidebar { width: 440px; height: 100%; border-left: 1px solid rgba(255, 255, 255, 0.1); border-top: none; }
     }
     
+    /* El catálogo toma el espacio sobrante y hace scroll internamente */
     #catalog-text { 
         flex: 1; 
-        padding: 30px; 
-        overflow-y: auto; 
-        scrollbar-width: thin; 
-        scrollbar-color: rgba(255,255,255,0.3) transparent; 
-    }
-    @media (max-width: 768px) {
-        #catalog-text { padding: 15px; } 
-    }
-    #catalog-text::-webkit-scrollbar { width: 6px; }
-    #catalog-text::-webkit-scrollbar-track { background: transparent; }
-    #catalog-text::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 10px; }
-
-    #catalog-text h2 { 
-        font-size: 20px; 
-        font-weight: 600;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.15); 
-        padding-bottom: 15px; 
-        margin-top: 0; 
-        text-transform: uppercase; 
-        letter-spacing: 3px; 
-        text-align: center; 
-        color: rgba(255, 255, 255, 0.9);
-        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    
-    /* --- SECCIONES Y LINKS --- */
-    .cat-section { margin-bottom: 30px; }
-    .cat-section b { 
-        display: block; 
-        color: rgba(255,255,255,0.85); 
-        margin-bottom: 12px; 
-        font-size: 12px; 
-        letter-spacing: 1.5px; 
-        text-transform: uppercase; 
-        padding-left: 10px; 
-        border-left: 3px solid #d4af37; 
-        background: linear-gradient(90deg, rgba(212, 175, 55, 0.1), transparent);
-        padding-top: 6px; padding-bottom: 6px; border-radius: 4px;
-    }
-    .grid-links { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-    
-    .design-link { 
-        cursor: pointer; 
-        padding: 10px; 
-        font-size: 11px; 
-        color: rgba(255, 255, 255, 0.7); 
-        transition: all 0.3s ease; 
-        border-radius: 12px; 
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-    }
-    .design-link:hover { 
-        color: #fff; 
-        background: rgba(255, 255, 255, 0.15); 
-        border-color: rgba(212, 175, 55, 0.5);
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-
-    /* --- HERRAMIENTAS PRO --- */
-    .tools-container { 
-        display: flex; flex-direction: column; gap: 15px; 
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         padding: 20px; 
-        border-radius: 20px; 
-        margin-bottom: 30px; 
-        box-shadow: inset 0 0 20px rgba(255,255,255,0.02);
+        overflow-y: auto; 
+        -webkit-overflow-scrolling: touch; 
+    }
+    @media (max-width: 768px) { #catalog-text { padding: 15px; } }
+    #catalog-text::-webkit-scrollbar { display: none; }
+
+    /* --- SECCIONES Y HERRAMIENTAS --- */
+    .tools-container { 
+        display: flex; flex-direction: column; gap: 12px; 
+        background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px; border-radius: 15px; margin-bottom: 20px; 
     }
     .tool-row { display: flex; align-items: center; justify-content: space-between; }
-    .tool-row label { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-    
-    .tools-divider { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; margin: 5px 0; }
+    .tool-row label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 600; text-transform: uppercase; }
+    .tools-divider { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; margin: 2px 0; }
 
-    input[type="color"] { -webkit-appearance: none; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: transparent; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.2s;}
-    input[type="color"]:hover { transform: scale(1.1); }
-    input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+    input[type="color"] { -webkit-appearance: none; border: none; width: 35px; height: 35px; border-radius: 50%; background: transparent; }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); }
     input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
 
-    input[type="range"] { -webkit-appearance: none; width: 130px; background: transparent; }
+    input[type="range"] { -webkit-appearance: none; width: 120px; background: transparent; }
     @media (max-width: 768px) { input[type="range"] { width: 100px; } }
-    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #d4af37; cursor: pointer; margin-top: -7px; box-shadow: 0 2px 10px rgba(212, 175, 55, 0.5); border: 2px solid rgba(255,255,255,0.8); }
-    input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 10px; }
-    input[type="range"]:focus { outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #d4af37; margin-top: -7px; border: 2px solid rgba(255,255,255,0.8); }
+    input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-    .custom-file-upload, button { 
-        display: inline-block; padding: 12px 20px; cursor: pointer; 
+    .custom-file-upload, button.btn-cam { 
+        display: inline-block; padding: 10px 15px; 
         background: linear-gradient(135deg, rgba(212, 175, 55, 0.4), rgba(212, 175, 55, 0.1));
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
-        color: #fff; font-weight: 600; font-size: 11px; border-radius: 15px; text-transform: uppercase; transition: all 0.3s; 
-        text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        border: 1px solid rgba(212, 175, 55, 0.3); color: #fff; font-weight: 600; font-size: 10px; 
+        border-radius: 12px; text-transform: uppercase; text-align: center; cursor: pointer;
     }
-    .custom-file-upload:hover, button:hover { 
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.2));
-        transform: translateY(-2px); box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
-    }
+    .custom-file-upload:active, button.btn-cam:active { background: rgba(212, 175, 55, 0.5); }
     input[type="file"] { display: none; }
 
-    /* Área de Búsqueda */
-    #chat-area { 
-        background: rgba(30, 30, 30, 0.4); 
-        backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-        padding: 25px; 
-        border-top: 1px solid rgba(255, 255, 255, 0.1); 
+    /* CATÁLOGO */
+    .cat-section { margin-bottom: 25px; }
+    .cat-section b { 
+        display: block; color: rgba(255,255,255,0.85); margin-bottom: 10px; font-size: 11px; 
+        letter-spacing: 1px; text-transform: uppercase; padding-left: 8px; border-left: 2px solid #d4af37; 
     }
-    @media (max-width: 768px) {
-        #chat-area { padding: 15px; }
+    .grid-links { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .design-link { 
+        padding: 8px; font-size: 10px; color: rgba(255, 255, 255, 0.8); border-radius: 10px; 
+        background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+    }
+    .design-link:active { background: rgba(212, 175, 55, 0.3); color: #fff; }
+
+    /* --- EL BUSCADOR RECUPERADO Y ANCLADO --- */
+    #chat-area { 
+        flex-shrink: 0; /* IMPIDE que se aplaste o desaparezca */
+        background: rgba(10, 10, 10, 0.95); 
+        padding: 15px; 
+        padding-bottom: calc(15px + env(safe-area-inset-bottom)); /* Espacio extra para la línea de iPhone */
+        border-top: 1px solid rgba(255, 255, 255, 0.1); 
     }
     .chat-input-box { display: flex; gap: 10px; }
     input[type="text"] { 
-        flex: 1; 
-        background: rgba(0, 0, 0, 0.2); 
-        border: 1px solid rgba(255, 255, 255, 0.15); 
-        color: #fff; padding: 15px; border-radius: 15px; outline: none; font-size: 14px; 
-        box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
-        transition: border-color 0.3s;
+        flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); 
+        color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; 
     }
-    input[type="text"]:focus { border-color: rgba(212, 175, 55, 0.5); }
-    input[type="text"]::placeholder { color: rgba(255,255,255,0.4); }
+    #chat-area button {
+        background: #d4af37; color: #000; font-weight: bold; border: none; padding: 0 15px; border-radius: 12px; cursor: pointer;
+    }
     
     /* Marca */
-    #brand { position: absolute; top: 25px; left: 30px; z-index: 10; pointer-events: none; }
-    @media (max-width: 768px) { #brand { top: 15px; left: 15px; } }
-    #brand h2 { margin: 0; font-weight: 700; letter-spacing: 2px; font-size: 24px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-    #brand small { color: #d4af37; letter-spacing: 1px; font-weight: 600; text-shadow: 0 1px 5px rgba(0,0,0,0.5); }
+    #brand { position: absolute; top: 15px; left: 15px; z-index: 10; pointer-events: none; }
+    #brand h2 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 18px; color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,0.8); }
+    #brand small { color: #d4af37; letter-spacing: 1px; font-weight: 600; font-size: 10px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
   </style>
 </head>
 <body>
@@ -181,18 +171,19 @@
 <div id="main-container">
     <div id="video-container">
         <div id="brand"><h2>AURASENS PRO</h2><small>VIRTUAL STUDIO</small></div>
+        
+        <button id="fullBtn" class="btn-fullscreen" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
+        
         <video id="vid" playsinline></video>
         <canvas id="canv"></canvas>
     </div>
 
     <div id="sidebar">
         <div id="catalog-text">
-            <h2>Biblioteca Maestra</h2>
-
             <div class="tools-container">
                 <div class="tool-row">
                     <label>Cámara:</label>
-                    <button onclick="toggleCamera()">🔄 Girar Cámara</button>
+                    <button class="btn-cam" onclick="toggleCamera()">🔄 Girar Cámara</button>
                 </div>
                 <hr class="tools-divider">
                 <div class="tool-row">
@@ -213,7 +204,7 @@
             </div>
             
             <div class="cat-section">
-                <b>🤎 Nudes & Piel (Solid)</b>
+                <b>🤎 Nudes & Piel</b>
                 <div class="grid-links">
                     <span class="design-link" onclick="setD('#ffffff', 'solid')">Blanco Leche</span>
                     <span class="design-link" onclick="setD('#f5f5dc', 'solid')">Beige Nude</span>
@@ -225,7 +216,7 @@
             </div>
 
             <div class="cat-section">
-                <b>🌹 Rojos & Fríos (Solid)</b>
+                <b>🌹 Rojos & Fríos</b>
                 <div class="grid-links">
                     <span class="design-link" onclick="setD('#ff0000', 'solid')">Rojo Carmesí</span>
                     <span class="design-link" onclick="setD('#800020', 'solid')">Vino Burgundy</span>
@@ -237,7 +228,7 @@
             </div>
 
             <div class="cat-section">
-                <b>💎 Gemas & Metales (Efectos)</b>
+                <b>💎 Gemas & Metales</b>
                 <div class="grid-links">
                     <span class="design-link" onclick="setD('#ffffff', 'marmol')">Mármol Blanco</span>
                     <span class="design-link" onclick="setD('#004d43', 'marmol')">Mármol Esmeralda</span>
@@ -249,7 +240,7 @@
             </div>
 
             <div class="cat-section">
-                <b>✨ Arte & Estampados (Efectos)</b>
+                <b>✨ Arte & Estampados</b>
                 <div class="grid-links">
                     <span class="design-link" onclick="setD('#ffffff', 'francesa')">Francesa Blanca</span>
                     <span class="design-link" onclick="setD('#d4af37', 'francesa')">Francesa Oro</span>
@@ -271,6 +262,27 @@
 </div>
 
 <script>
+    // --- LÓGICA PANTALLA COMPLETA ---
+    let isFullscreen = false;
+    function toggleFullscreen() {
+        isFullscreen = !isFullscreen;
+        const btn = document.getElementById('fullBtn');
+        if(isFullscreen) {
+            document.body.classList.add('fullscreen-active');
+            btn.innerText = "✖ Cerrar Diseño";
+            btn.style.background = "rgba(180, 0, 0, 0.6)"; // Rojo suave al cerrar
+            btn.style.borderColor = "transparent";
+            btn.style.color = "#fff";
+        } else {
+            document.body.classList.remove('fullscreen-active');
+            btn.innerText = "⛶ Pantalla Completa";
+            btn.style.background = "rgba(20, 20, 20, 0.7)";
+            btn.style.borderColor = "rgba(212, 175, 55, 0.5)";
+            btn.style.color = "#d4af37";
+        }
+    }
+
+    // --- LÓGICA EXISTENTE ---
     let conf = { c: "#800020", m: "solid", l: 1.5 };
     let uploadedImage = new Image();
     let isImageReady = false;
@@ -321,19 +333,17 @@
     }
 
     const v = document.getElementById('vid');
-    
-    // OPTIMIZACIÓN 3: willReadFrequently mejora el rendimiento de memoria en móviles
     const c = document.getElementById('canv');
     const ctx = c.getContext('2d', { willReadFrequently: true });
 
     const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
     
-    // OPTIMIZACIÓN 1: modelComplexity en 0 para que la IA vuele en celulares
+    // IA OPTIMIZADA - Model Complexity 0
     hands.setOptions({ 
         maxNumHands: 1, 
         modelComplexity: 0, 
         minDetectionConfidence: 0.5, 
-        minTrackingConfidence: 0.5
+        minTrackingConfidence: 0.5 
     });
 
     hands.onResults((res) => {
@@ -362,9 +372,9 @@
         ctx.rotate(rot);
         ctx.translate(0, -h * 0.05);
 
-        ctx.shadowColor = "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 4;
+        // SOMBRAS APAGADAS PARA RENDIMIENTO
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
 
         ctx.beginPath();
         ctx.moveTo(-w/2, 0);
@@ -374,13 +384,11 @@
         ctx.bezierCurveTo(-w/3, h/3, -w/2, h/4, -w/2, 0); 
 
         if (conf.m === 'custom_image' && isImageReady) {
-            ctx.shadowColor = "transparent";
             ctx.clip(); 
             ctx.drawImage(uploadedImage, -w/1.8, -h*1.1, w*1.1, h*1.5); 
         } else {
             ctx.fillStyle = conf.c;
             ctx.fill();
-            ctx.shadowColor = "transparent";
             ctx.clip();
 
             if(conf.m === "marmol") {
@@ -390,9 +398,9 @@
                 ctx.fillStyle = "#ffffff"; ctx.fillRect(-w, -h/2, w*2, h/4);
             } else if(conf.m === "animal") {
                 ctx.fillStyle = "rgba(0,0,0,0.5)";
-                for(let i=0; i<6; i++) { ctx.beginPath(); ctx.arc(Math.sin(i)*w/3, Math.cos(i)*h/4, w/5, 0, Math.PI*2); ctx.fill(); }
+                for(let i=0; i<5; i++) { ctx.beginPath(); ctx.arc(Math.sin(i)*w/3, Math.cos(i)*h/4, w/5, 0, Math.PI*2); ctx.fill(); }
             } else if(conf.m === "brillos" || conf.m === "galaxia") {
-                ctx.fillStyle = "white"; for(let i=0; i<25; i++) {
+                ctx.fillStyle = "white"; for(let i=0; i<15; i++) {
                     ctx.globalAlpha = Math.random();
                     ctx.fillRect(Math.random()*w-w/2, Math.random()*h-h/2, 2, 2);
                 }
@@ -402,23 +410,23 @@
 
         const volumeGrad = ctx.createRadialGradient(0, -h/4, w/4, 0, 0, w);
         volumeGrad.addColorStop(0, "transparent");
-        volumeGrad.addColorStop(1, "rgba(0,0,0,0.45)");
+        volumeGrad.addColorStop(1, "rgba(0,0,0,0.5)");
         ctx.fillStyle = volumeGrad;
         ctx.fill();
 
         ctx.beginPath();
         ctx.ellipse(-w/6, -h/2, w/8, h/3, Math.PI/12, 0, Math.PI * 2);
         const shineGrad = ctx.createLinearGradient(-w/6, -h, -w/6, 0);
-        shineGrad.addColorStop(0, "rgba(255,255,255,0.75)");
+        shineGrad.addColorStop(0, "rgba(255,255,255,0.7)");
         shineGrad.addColorStop(1, "rgba(255,255,255,0.0)");
         ctx.fillStyle = shineGrad;
         ctx.fill();
 
         if (conf.m === "cromo") {
             const chromeGrad = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2);
-            chromeGrad.addColorStop(0, "rgba(255,255,255,0.5)");
+            chromeGrad.addColorStop(0, "rgba(255,255,255,0.6)");
             chromeGrad.addColorStop(0.5, "transparent");
-            chromeGrad.addColorStop(1, "rgba(0,0,0,0.3)");
+            chromeGrad.addColorStop(1, "rgba(0,0,0,0.4)");
             ctx.fillStyle = chromeGrad; ctx.fill();
         }
 
@@ -430,21 +438,15 @@
     let cameraInstance = null;
 
     function startCamera() {
-        if (cameraInstance) {
-            cameraInstance.stop();
-        }
-        
+        if (cameraInstance) { cameraInstance.stop(); }
         const mode = isFrontCamera ? 'user' : 'environment';
-        c.style.transform = isFrontCamera ? "scaleX(-1)" : "scaleX(1)";
+        c.style.transform = isFrontCamera ? "scaleX(-1) translateZ(0)" : "scaleX(1) translateZ(0)";
 
-        // OPTIMIZACIÓN 2: Resolución reducida para aligerar la carga del CPU
         cameraInstance = new Camera(v, {
-            onFrame: async () => {
-                await hands.send({image: v});
-            },
+            onFrame: async () => { await hands.send({image: v}); },
             facingMode: mode,
-            width: 640,
-            height: 480
+            width: 1280, 
+            height: 720
         });
         cameraInstance.start();
     }
@@ -454,7 +456,6 @@
         startCamera();
     }
 
-    // Iniciar
     startCamera();
 </script>
 </body>
