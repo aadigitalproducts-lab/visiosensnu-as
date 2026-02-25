@@ -1,341 +1,423 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>AuraSens - Versión Móvil Optimizada (Textos Grandes)</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AuraSens Pro - Virtual Studio</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <style>
+    /* --- FONDOS Y ESTRUCTURA BASE --- */
+    body { 
+        margin: 0; padding: 0;
+        background: radial-gradient(circle at top right, #1a0b2e, #000000); 
+        overflow: hidden; 
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+        color: #fff;
+        touch-action: none; 
+    }
+    #main-container { 
+        display: flex; width: 100vw; height: 100vh; height: 100dvh; flex-direction: column;
+    }
+    @media (min-width: 768px) { #main-container { flex-direction: row; } }
 
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #050505; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #d4af37; }
-        
-        .serif-text { font-family: 'Garamond', 'Times New Roman', serif; }
+    /* --- CAPA DE VIDEO TRANSPARENTE ULTRA-RÁPIDA --- */
+    #video-container { 
+        position: relative; 
+        flex: 1; min-height: 40%; background: #000; 
+        overflow: hidden; display: flex; justify-content: center; align-items: center;
+        transition: all 0.3s ease;
+    }
+    
+    /* El video nativo y el lienzo se superponen exactamente */
+    video, canvas { 
+        position: absolute;
+        width: 100%; height: 100%; 
+        object-fit: contain; /* Garantiza que encajen perfectos */
+        display: block;
+        transform: scaleX(-1) translateZ(0); /* Espejo por defecto y GPU */
+        will-change: transform;
+    }
+    /* El lienzo ahora es transparente, solo muestra uñas */
+    canvas { background: transparent; pointer-events: none; z-index: 2; }
+    video { z-index: 1; } /* El video se muestra debajo */
 
-        #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .input_video { display: none; }
-        .output_canvas { width: 100vw; height: 100vh; object-fit: cover; } 
+    /* Desactivar espejo para cámara trasera */
+    video.rear-camera, canvas.rear-camera { transform: scaleX(1) translateZ(0); }
+    
+    /* BOTÓN PANTALLA COMPLETA */
+    .btn-fullscreen {
+        position: absolute; bottom: 15px; right: 15px; z-index: 20;
+        background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        border: 1px solid rgba(212, 175, 55, 0.5); color: #d4af37; padding: 8px 15px; border-radius: 20px;
+        cursor: pointer; font-size: 10px; text-transform: uppercase; font-weight: bold;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.3s;
+    }
+    .btn-fullscreen:active { transform: scale(0.95); background: rgba(212, 175, 55, 0.2); }
 
-        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); text-align: center; }
-        
-        #intro-screen { background: rgba(10, 10, 12, 0.4); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 10; }
-        
-        /* Títulos fluidos para que se vean enormes pero no se rompan en móviles */
-        .logo-title { font-size: clamp(3.5rem, 12vw, 5rem); letter-spacing: 4px; margin-bottom: 5px; text-transform: uppercase; background: linear-gradient(135deg, #FFDF73 0%, #d4af37 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 15px rgba(212, 175, 55, 0.3)); }
-        .logo-subtitle { font-size: clamp(1.1rem, 4vw, 1.3rem); letter-spacing: 3px; color: rgba(255, 255, 255, 0.9); margin-bottom: 50px; font-weight: 300; text-transform: uppercase; }
-        
-        /* Botones más grandes y fáciles de tocar */
-        button { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(212, 175, 55, 0.4); color: #FFDF73; padding: 18px 30px; font-size: 1.1rem; letter-spacing: 2px; cursor: pointer; transition: all 0.4s ease; text-transform: uppercase; border-radius: 50px; margin: 10px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); font-weight: 600; width: 85%; max-width: 350px;}
-        button:hover { background: rgba(212, 175, 55, 0.15); border-color: #FFDF73; box-shadow: 0 8px 32px 0 rgba(212, 175, 55, 0.2), inset 0 0 15px rgba(212, 175, 55, 0.1); transform: translateY(-2px); color: #fff; }
-        #btn-num { background: rgba(212, 175, 55, 0.15); font-weight: bold; color: #fff; border: 1px solid rgba(212, 175, 55, 0.6); }
+    body.fullscreen-active #sidebar { display: none !important; }
+    body.fullscreen-active #video-container { height: 100dvh !important; flex: none; }
 
-        /* Controles superiores más visibles */
-        .top-controls { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 100; pointer-events: none; }
-        .glass-icon-btn { pointer-events: auto; padding: 12px 18px; font-size: 0.95rem; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.9); border-radius: 30px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); margin: 0; box-shadow: none; text-transform: none; font-weight: 500; letter-spacing: 1px; width: auto; }
-        .glass-icon-btn:hover { background: rgba(0,0,0,0.6); color: #fff; transform: none; border-color: rgba(255,255,255,0.4); }
+    /* --- BARRA LATERAL --- */
+    #sidebar { 
+        width: 100%; height: 55%; 
+        background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(15px) saturate(150%); -webkit-backdrop-filter: blur(15px) saturate(150%);
+        display: flex; flex-direction: column; border-top: 1px solid rgba(255, 255, 255, 0.1); 
+        z-index: 10; transition: all 0.3s ease;
+    }
+    @media (min-width: 768px) { #sidebar { width: 440px; height: 100%; border-left: 1px solid rgba(255, 255, 255, 0.1); border-top: none; } }
+    
+    #catalog-text { flex: 1; padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 768px) { #catalog-text { padding: 15px; } }
+    #catalog-text::-webkit-scrollbar { display: none; }
 
-        .scanner-laser { position: absolute; left: 0; width: 100%; height: 3px; background: #FFDF73; box-shadow: 0 0 15px #d4af37; animation: laserScan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate; z-index: 25; display: none; pointer-events: none; }
-        @keyframes laserScan { 0% { top: 5%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 95%; opacity: 0; } }
+    /* --- HERRAMIENTAS --- */
+    .tools-container { 
+        display: flex; flex-direction: column; gap: 12px; 
+        background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px; border-radius: 15px; margin-bottom: 20px; 
+    }
+    .tool-row { display: flex; align-items: center; justify-content: space-between; }
+    .tool-row label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 600; text-transform: uppercase; }
+    .tools-divider { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; margin: 2px 0; }
 
-        #scan-screen { display: none; z-index: 20; pointer-events: none; }
-        .scan-text { font-size: 1.4rem; letter-spacing: 4px; font-weight: 400; animation: pulse 2s infinite ease-in-out; text-shadow: 0 0 10px rgba(212, 175, 55, 0.6); color: #FFDF73; text-transform: uppercase; }
-        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+    input[type="color"] { -webkit-appearance: none; border: none; width: 35px; height: 35px; border-radius: 50%; background: transparent; }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); }
+    input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
 
-        #result-screen { display: none; align-items: center; z-index: 30; }
-        
-        .result-card { background: rgba(15, 15, 18, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); padding: 35px 20px; border-radius: 30px; backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%); max-width: 500px; width: 92%; margin-top: auto; margin-bottom: 4vh; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
-        
-        /* Textos de la tarjeta incrementados */
-        .res-subtitle { font-size: 0.95rem; letter-spacing: 3px; color: rgba(255,255,255,0.6); margin-bottom: 10px; text-transform: uppercase; font-weight: 600; }
-        .res-color-name { font-size: clamp(2.2rem, 9vw, 3rem); font-weight: normal; margin-bottom: 5px; letter-spacing: 1px; line-height: 1.1; }
-        .res-hz { font-family: 'Courier New', monospace; font-size: 1.25rem; color: rgba(255,255,255,0.95); margin-bottom: 20px; letter-spacing: 2px; font-weight: bold;}
-        
-        .bio-stats { display: flex; justify-content: space-between; margin-bottom: 25px; gap: 8px; }
-        .stat-box { flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); padding: 12px 2px; border-radius: 15px; display: flex; flex-direction: column; align-items: center; }
-        .stat-label { color: rgba(255,255,255,0.6); font-size: 0.8rem; letter-spacing: 1px; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; text-align: center;}
-        .stat-value { font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold; color: #fff;}
-        
-        .res-meaning { font-size: 1.15rem; color: rgba(255,255,255,0.9); line-height: 1.5; font-weight: 400; margin-bottom: 25px; padding: 0 10px; }
-    </style>
+    input[type="range"] { -webkit-appearance: none; width: 120px; background: transparent; }
+    @media (max-width: 768px) { input[type="range"] { width: 100px; } }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #d4af37; margin-top: -7px; border: 2px solid rgba(255,255,255,0.8); }
+    input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+    .custom-file-upload, button.btn-cam { 
+        display: inline-block; padding: 10px 15px; 
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.4), rgba(212, 175, 55, 0.1));
+        border: 1px solid rgba(212, 175, 55, 0.3); color: #fff; font-weight: 600; font-size: 10px; 
+        border-radius: 12px; text-transform: uppercase; text-align: center; cursor: pointer;
+    }
+    .custom-file-upload:active, button.btn-cam:active { background: rgba(212, 175, 55, 0.5); }
+    input[type="file"] { display: none; }
+
+    /* CATÁLOGO */
+    .cat-section { margin-bottom: 25px; }
+    .cat-section b { 
+        display: block; color: rgba(255,255,255,0.85); margin-bottom: 10px; font-size: 11px; 
+        letter-spacing: 1px; text-transform: uppercase; padding-left: 8px; border-left: 2px solid #d4af37; 
+    }
+    .grid-links { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .design-link { 
+        padding: 8px; font-size: 10px; color: rgba(255, 255, 255, 0.8); border-radius: 10px; 
+        background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+    }
+    .design-link:active { background: rgba(212, 175, 55, 0.3); color: #fff; }
+
+    /* --- BUSCADOR ANCLADO --- */
+    #chat-area { 
+        flex-shrink: 0; background: rgba(10, 10, 10, 0.95); padding: 15px; 
+        padding-bottom: calc(15px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255, 255, 255, 0.1); 
+    }
+    .chat-input-box { display: flex; gap: 10px; }
+    input[type="text"] { 
+        flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); 
+        color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; 
+    }
+    #chat-area button { background: #d4af37; color: #000; font-weight: bold; border: none; padding: 0 15px; border-radius: 12px; cursor: pointer; }
+    
+    /* Marca */
+    #brand { position: absolute; top: 15px; left: 15px; z-index: 10; pointer-events: none; }
+    #brand h2 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 18px; color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,0.8); }
+    #brand small { color: #d4af37; letter-spacing: 1px; font-weight: 600; font-size: 10px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  </style>
 </head>
 <body>
 
-    <div id="container">
-        <video class="input_video" playsinline></video>
-        <canvas class="output_canvas" id="canvas"></canvas>
+<div id="main-container">
+    <div id="video-container">
+        <div id="brand"><h2>AURASENS PRO</h2><small>VIRTUAL STUDIO</small></div>
         
-        <div class="top-controls">
-            <button id="btn-flip" class="glass-icon-btn">🔄 Cámara</button>
-            <button id="btn-mute" class="glass-icon-btn">🔊 Sonido: ON</button>
-        </div>
+        <button id="fullBtn" class="btn-fullscreen" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
+        
+        <video id="vid" autoplay muted playsinline></video>
+        <canvas id="canv"></canvas>
+    </div>
 
-        <div id="scanner-laser" class="scanner-laser"></div>
-
-        <div id="intro-screen" class="ui-layer">
-            <div class="logo-title serif-text">AuraSens</div>
-            <div class="logo-subtitle">Lectura Geométrica</div>
-            <button id="btn-start">Comenzar Sesión</button>
-        </div>
-
-        <div id="scan-screen" class="ui-layer">
-            <div class="scan-text">Calibrando Energía...</div>
-        </div>
-
-        <div id="result-screen" class="ui-layer">
-            <div class="result-card" id="r-card">
-                <div class="res-subtitle">Sincronización Completa</div>
-                <div class="res-color-name serif-text" id="r-title">---</div>
-                <div class="res-hz" id="r-hz">--- Hz</div>
-                
-                <div class="bio-stats" id="r-stats">
-                    <div class="stat-box"><span class="stat-label">Pulso (Est)</span><span class="stat-value" id="r-bpm">--</span></div>
-                    <div class="stat-box"><span class="stat-label">Térmica</span><span class="stat-value" id="r-temp">--</span></div>
-                    <div class="stat-box"><span class="stat-label">Armonía</span><span class="stat-value" id="r-coh">--</span></div>
+    <div id="sidebar">
+        <div id="catalog-text">
+            <div class="tools-container">
+                <div class="tool-row">
+                    <label>Cámara:</label>
+                    <button class="btn-cam" onclick="toggleCamera()">🔄 Girar Cámara</button>
                 </div>
+                <hr class="tools-divider">
+                <div class="tool-row">
+                    <label>Ajustar Largo:</label>
+                    <input type="range" id="nailLength" min="1.0" max="2.5" step="0.1" value="1.5" oninput="setLength(this.value)">
+                </div>
+                <hr class="tools-divider">
+                <div class="tool-row">
+                    <label>Color Libre:</label>
+                    <input type="color" id="customColor" value="#800020" onchange="setCustomColor(this.value)">
+                </div>
+                <hr class="tools-divider">
+                <div class="tool-row">
+                    <label>Proyectar Diseño:</label>
+                    <label for="imageUpload" class="custom-file-upload">📁 Subir Imagen</label>
+                    <input type="file" id="imageUpload" accept="image/png, image/jpeg" onchange="handleImageUpload(event)">
+                </div>
+            </div>
+            
+            <div class="cat-section">
+                <b>🤎 Nudes & Piel</b>
+                <div class="grid-links">
+                    <span class="design-link" onclick="setD('#ffffff', 'solid')">Blanco Leche</span>
+                    <span class="design-link" onclick="setD('#f5f5dc', 'solid')">Beige Nude</span>
+                    <span class="design-link" onclick="setD('#e3bc9a', 'solid')">Piel Rosada</span>
+                    <span class="design-link" onclick="setD('#d2b48c', 'solid')">Tan Claro</span>
+                    <span class="design-link" onclick="setD('#8b4513', 'solid')">Marrón Tierra</span>
+                    <span class="design-link" onclick="setD('#4b2c20', 'solid')">Café Profundo</span>
+                </div>
+            </div>
 
-                <div class="res-meaning serif-text" id="r-desc">---</div>
-                <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
-                    <button id="btn-num">Guardar Análisis</button>
-                    <button id="btn-reset" style="background: transparent; border: none; font-size: 1rem; color: #aaa; box-shadow: none; padding: 10px;">Finalizar Sesión</button>
+            <div class="cat-section">
+                <b>🌹 Rojos & Fríos</b>
+                <div class="grid-links">
+                    <span class="design-link" onclick="setD('#ff0000', 'solid')">Rojo Carmesí</span>
+                    <span class="design-link" onclick="setD('#800020', 'solid')">Vino Burgundy</span>
+                    <span class="design-link" onclick="setD('#ff1493', 'solid')">Fucsia Neón</span>
+                    <span class="design-link" onclick="setD('#000000', 'solid')">Negro Onyx</span>
+                    <span class="design-link" onclick="setD('#4169e1', 'solid')">Azul Royal</span>
+                    <span class="design-link" onclick="setD('#50c878', 'solid')">Verde Esmeralda</span>
+                </div>
+            </div>
+
+            <div class="cat-section">
+                <b>💎 Gemas & Metales</b>
+                <div class="grid-links">
+                    <span class="design-link" onclick="setD('#ffffff', 'marmol')">Mármol Blanco</span>
+                    <span class="design-link" onclick="setD('#004d43', 'marmol')">Mármol Esmeralda</span>
+                    <span class="design-link" onclick="setD('#2f4f4f', 'marmol')">Onyx Veteado</span>
+                    <span class="design-link" onclick="setD('#d4af37', 'cromo')">Oro 24K Cromo</span>
+                    <span class="design-link" onclick="setD('#e5e4e2', 'cromo')">Plata Espejo</span>
+                    <span class="design-link" onclick="setD('#b76e79', 'cromo')">Oro Rosa Cromo</span>
+                </div>
+            </div>
+
+            <div class="cat-section">
+                <b>✨ Arte & Estampados</b>
+                <div class="grid-links">
+                    <span class="design-link" onclick="setD('#ffffff', 'francesa')">Francesa Blanca</span>
+                    <span class="design-link" onclick="setD('#d4af37', 'francesa')">Francesa Oro</span>
+                    <span class="design-link" onclick="setD('#000000', 'animal')">Leopardo Dark</span>
+                    <span class="design-link" onclick="setD('#ffffff', 'brillos')">Diamond Dust</span>
+                    <span class="design-link" onclick="setD('#ff00ff', 'galaxia')">Galaxia Violeta</span>
+                    <span class="design-link" onclick="setD('#000033', 'galaxia')">Cielo Nocturno</span>
                 </div>
             </div>
         </div>
-    </div>
-
-<script type="module">
-    const videoElement = document.querySelector('.input_video');
-    const canvasElement = document.querySelector('.output_canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    
-    const introScreen = document.getElementById('intro-screen');
-    const scanScreen = document.getElementById('scan-screen');
-    const resultScreen = document.getElementById('result-screen');
-    const btnStart = document.getElementById('btn-start');
-    const btnReset = document.getElementById('btn-reset');
-    const btnNum = document.getElementById('btn-num');
-    const btnMute = document.getElementById('btn-mute');
-    const btnFlip = document.getElementById('btn-flip');
-    const scannerLaser = document.getElementById('scanner-laser'); 
-    
-    const rCard = document.getElementById('r-card');
-    const rTitle = document.getElementById('r-title');
-    const rHz = document.getElementById('r-hz');
-    const rDesc = document.getElementById('r-desc');
-    const rBpm = document.getElementById('r-bpm');
-    const rTemp = document.getElementById('r-temp');
-    const rCoh = document.getElementById('r-coh');
-
-    let appState = 'intro'; 
-    let finalAuraData = null; 
-    let finalBioStats = null;
-    let facingMode = 'user'; 
-    let cameraActive = null;
-
-    async function startCamera() {
-        if (cameraActive) await cameraActive.stop();
-        canvasElement.style.transform = (facingMode === 'user') ? 'scaleX(-1)' : 'scaleX(1)';
         
-        cameraActive = new Camera(videoElement, {
-            onFrame: async () => { await faceMesh.send({image: videoElement}); },
-            width: 640, height: 480, 
-            facingMode: facingMode
-        });
-        cameraActive.start();
-    }
+        <div id="chat-area">
+            <div class="chat-input-box">
+                <input type="text" id="chatIn" placeholder="Busca color o diseño..." onkeypress="if(event.key==='Enter') runChat()">
+                <button onclick="runChat()">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
 
-    btnFlip.addEventListener('click', () => {
-        facingMode = (facingMode === 'user') ? 'environment' : 'user';
-        startCamera();
-    });
-
-    let lastFaceX = null; let lastFaceY = null; let windX = 0; let windY = 0; let targetWindX = 0; let targetWindY = 0;
-
-    let particles = [];
-    for(let i = 0; i < 30; i++) { 
-        particles.push({
-            x: Math.random(), y: Math.random(), size: Math.random() * 2 + 0.5,
-            speedY: -(Math.random() * 0.003 + 0.001), speedX: (Math.random() - 0.5) * 0.001, opacity: Math.random() * 0.5 + 0.1
-        });
-    }
-
-    let petals = [];
-    for(let i = 0; i < 15; i++) { 
-        petals.push({
-            x: Math.random(), y: Math.random(), size: Math.random() * 5 + 3, 
-            speedY: Math.random() * 0.002 + 0.002, speedX: (Math.random() - 0.5) * 0.001, 
-            rotation: Math.random() * Math.PI * 2, rotSpeed: (Math.random() - 0.5) * 0.03, opacity: Math.random() * 0.4 + 0.3
-        });
-    }
-
-    function updateAndDrawEnvironment(color) {
-        canvasCtx.save();
-        targetWindX *= 0.85; targetWindY *= 0.85; windX += (targetWindX - windX) * 0.1; windY += (targetWindY - windY) * 0.1;
-
-        canvasCtx.fillStyle = color;
-        particles.forEach(p => {
-            p.y += p.speedY + windY * 0.5; p.x += p.speedX + windX * 0.5;
-            if(p.y < -0.1) p.y = 1.1; if(p.y > 1.1) p.y = -0.1; if(p.x < -0.1) p.x = 1.1; if(p.x > 1.1) p.x = -0.1;
-            canvasCtx.globalAlpha = p.opacity; canvasCtx.beginPath(); canvasCtx.arc(p.x * canvasElement.width, p.y * canvasElement.height, p.size, 0, Math.PI * 2); canvasCtx.fill();
-        });
-
-        let petalColor = (appState === 'result' && finalAuraData) ? finalAuraData.color : '#ffb7c5'; 
-        petals.forEach(p => {
-            p.y += p.speedY + windY; p.x += p.speedX + windX; p.rotation += p.rotSpeed + (windX * 5); 
-            if(p.y > 1.1) p.y = -0.1; if(p.y < -0.1) p.y = 1.1; if(p.x < -0.1) p.x = 1.1; if(p.x > 1.1) p.x = -0.1;
-            canvasCtx.save(); canvasCtx.translate(p.x * canvasElement.width, p.y * canvasElement.height); canvasCtx.rotate(p.rotation);
-            canvasCtx.globalAlpha = p.opacity; canvasCtx.fillStyle = petalColor;
-            canvasCtx.beginPath(); canvasCtx.moveTo(0, -p.size); canvasCtx.quadraticCurveTo(p.size, 0, 0, p.size); canvasCtx.quadraticCurveTo(-p.size, 0, 0, -p.size); canvasCtx.fill(); canvasCtx.restore();
-        });
-        canvasCtx.restore();
-    }
-
-    let audioCtx; let masterGain; let activeOscillators = []; let activeGains = []; let isMuted = false;
-    function initAudio() {
-        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); masterGain = audioCtx.createGain(); masterGain.connect(audioCtx.destination); masterGain.gain.value = isMuted ? 0 : 1; }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-    btnMute.addEventListener('click', () => {
-        isMuted = !isMuted;
-        if (isMuted) { btnMute.innerText = "🔇 Sonido: OFF"; if (masterGain) { masterGain.gain.cancelScheduledValues(audioCtx.currentTime); masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5); } } 
-        else { btnMute.innerText = "🔊 Sonido: ON"; initAudio(); if (masterGain) { masterGain.gain.cancelScheduledValues(audioCtx.currentTime); masterGain.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.5); } }
-    });
-    function playTone(freq, type = 'sine', volume = 0.1, detune = 0) {
-        const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
-        osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime); osc.detune.setValueAtTime(detune, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 2);
-        osc.connect(gainNode); gainNode.connect(masterGain); osc.start(); activeOscillators.push(osc); activeGains.push(gainNode);
-    }
-    function playScanningSound() { stopAudio(); initAudio(); playTone(110, 'sine', 0.05); playTone(112, 'sine', 0.05); }
-    function playAuraFrequency(freq) { stopAudio(); initAudio(); playTone(freq, 'sine', 0.08); playTone(freq + 1.5, 'sine', 0.06); playTone(freq / 2, 'triangle', 0.03); }
-    function stopAudio() {
-        if (audioCtx && activeGains.length > 0) {
-            const now = audioCtx.currentTime; const gainsToStop = [...activeGains]; const oscsToStop = [...activeOscillators]; activeGains = []; activeOscillators = [];
-            gainsToStop.forEach(gain => { gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now); gain.gain.linearRampToValueAtTime(0, now + 1); });
-            setTimeout(() => { oscsToStop.forEach(osc => { try { osc.stop(); } catch(e){} }); }, 1000);
+<script>
+    let isFullscreen = false;
+    function toggleFullscreen() {
+        isFullscreen = !isFullscreen;
+        const btn = document.getElementById('fullBtn');
+        if(isFullscreen) {
+            document.body.classList.add('fullscreen-active');
+            btn.innerText = "✖ Cerrar Diseño";
+            btn.style.background = "rgba(180, 0, 0, 0.6)"; 
+            btn.style.borderColor = "transparent";
+            btn.style.color = "#fff";
+        } else {
+            document.body.classList.remove('fullscreen-active');
+            btn.innerText = "⛶ Pantalla Completa";
+            btn.style.background = "rgba(20, 20, 20, 0.7)";
+            btn.style.borderColor = "rgba(212, 175, 55, 0.5)";
+            btn.style.color = "#d4af37";
         }
     }
 
-    const oracleDictionary = [
-        { maxHue: 20, name: "Fuego Creativo", color: "#FF3300", hz: 417, desc: "Disuelve bloqueos y despierta el instinto. Tu aura es acción y fuerza vital." },
-        { maxHue: 45, name: "Ámbar Solar", color: "#FFB020", hz: 432, desc: "Sintonía natural. Irradias calidez, magnetismo y profunda creatividad." },
-        { maxHue: 75, name: "Tierra Fértil", color: "#FFDF73", hz: 528, desc: "Tono Milagroso. Tu energía atrae abundancia, prosperidad y luz." },
-        { maxHue: 110, name: "Jade Renacimiento", color: "#ADFF2F", hz: 582, desc: "Conexión con ciclos naturales. Estás en un periodo de vitalidad profunda." },
-        { maxHue: 150, name: "Sanación Esmeralda", color: "#00FF7F", hz: 639, desc: "Armoniza relaciones. Tu chakra corazón actúa como bálsamo energético." },
-        { maxHue: 180, name: "Turquesa Cristalino", color: "#40E0D0", hz: 685, desc: "Claridad mental absoluta. Tu campo purifica el ambiente y facilita la verdad." },
-        { maxHue: 215, name: "Agua Profunda", color: "#4DA6FF", hz: 741, desc: "Limpia toxinas emocionales. Eres un mar de intuición y expresión pura." },
-        { maxHue: 250, name: "Zafiro Cósmico", color: "#5C5CFF", hz: 777, desc: "Expansión de consciencia. Estás anclando sabiduría superior y calma." },
-        { maxHue: 280, name: "Índigo Despierto", color: "#8A2BE2", hz: 852, desc: "Activa el Tercer Ojo. Tu percepción espiritual es aguda y profunda." },
-        { maxHue: 315, name: "Éter Místico", color: "#B366FF", hz: 888, desc: "Abundancia del universo. Tu aura transmuta la energía densa en luz." },
-        { maxHue: 345, name: "Llama Magenta", color: "#FF4DFF", hz: 963, desc: "Conexión Divina. Vibras en un estado de unidad y amor incondicional." },
-        { maxHue: 360, name: "Rosa Cuarzo", color: "#FF66B2", hz: 999, desc: "Culminación y ascensión. Tu campo energético es pura compasión y gracia." }
-    ];
-    function getAuraMeaning(hue) { for (let i = 0; i < oracleDictionary.length; i++) { if (hue <= oracleDictionary[i].maxHue) return oracleDictionary[i]; } return oracleDictionary[0]; }
+    let conf = { c: "#800020", m: "solid", l: 1.5 };
+    let uploadedImage = new Image();
+    let isImageReady = false;
 
-    btnStart.addEventListener('click', () => {
-        appState = 'scanning'; introScreen.style.opacity = '0'; playScanningSound(); 
-        setTimeout(() => { introScreen.style.display = 'none'; scanScreen.style.display = 'flex'; scannerLaser.style.display = 'block'; }, 500);
-        setTimeout(() => {
-            appState = 'result'; scanScreen.style.display = 'none'; scannerLaser.style.display = 'none'; resultScreen.style.display = 'flex';
-            rTitle.innerText = finalAuraData.name; rTitle.style.color = finalAuraData.color;
-            rHz.innerText = `[ Freq: ${finalAuraData.hz} Hz ]`; rHz.style.color = finalAuraData.color;
-            rDesc.innerText = finalAuraData.desc;
-            rBpm.innerText = `${finalBioStats.bpm}`; rTemp.innerText = `${finalBioStats.temp}°C`; rCoh.innerText = `${finalBioStats.coherence}%`;
-            rBpm.style.color = finalAuraData.color; rTemp.style.color = finalAuraData.color; rCoh.style.color = finalAuraData.color;
-            rCard.style.boxShadow = `0 20px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1), 0 0 60px ${finalAuraData.color}22`;
-            playAuraFrequency(finalAuraData.hz); 
-        }, 3500);
+    const colors = {
+        "rojo": "#ff0000", "carmesi": "#dc143c", "vino": "#800020", "rosa": "#ff69b4",
+        "fucsia": "#ff1493", "coral": "#ff7f50", "azul": "#0000ff", "marino": "#000080",
+        "royal": "#4169e1", "celeste": "#87ceeb", "turquesa": "#40e0d0", "verde": "#008000",
+        "esmeralda": "#50c878", "neon": "#39ff14", "amarillo": "#ffff00", "naranja": "#ffa500",
+        "lavanda": "#e6e6fa", "morado": "#9b59b6", "negro": "#000000", "blanco": "#ffffff",
+        "nude": "#f5f5dc", "piel": "#e3bc9a", "cafe": "#4b2c20", "oro": "#d4af37",
+        "plata": "#e5e4e2", "gris": "#808080"
+    };
+
+    function setLength(val) { conf.l = parseFloat(val); }
+
+    function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImage = new Image();
+                uploadedImage.onload = function() { isImageReady = true; conf.m = 'custom_image'; }
+                uploadedImage.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function setD(color, modo) { conf.c = color; conf.m = modo; document.getElementById('customColor').value = color; }
+    function setCustomColor(colorHex) { conf.c = colorHex; conf.m = 'solid'; }
+    
+    function runChat() {
+        const val = document.getElementById('chatIn').value.toLowerCase();
+        if (val.includes("solido") || val.includes("liso")) conf.m = "solid";
+        else if(val.includes("marmol")) conf.m = "marmol";
+        else if(val.includes("francesa")) conf.m = "francesa";
+        else if(val.includes("animal")) conf.m = "animal";
+        else if(val.includes("cromo") || val.includes("espejo")) conf.m = "cromo";
+        else if(val.includes("brillo") || val.includes("glitter")) conf.m = "brillos";
+        else if(val.includes("galaxia")) conf.m = "galaxia";
+        
+        for (let k in colors) { if (val.includes(k)) { conf.c = colors[k]; document.getElementById('customColor').value = colors[k]; }}
+        document.getElementById('chatIn').value = "";
+    }
+
+    const v = document.getElementById('vid');
+    const c = document.getElementById('canv');
+    // Mantenemos el contexto estándar (el fondo transparente es vital aquí)
+    const ctx = c.getContext('2d');
+
+    const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({ 
+        maxNumHands: 1, 
+        modelComplexity: 0, 
+        minDetectionConfidence: 0.5, 
+        minTrackingConfidence: 0.5 
     });
 
-    btnReset.addEventListener('click', () => {
-        appState = 'intro'; resultScreen.style.display = 'none'; scannerLaser.style.display = 'none'; 
-        introScreen.style.display = 'flex'; introScreen.style.opacity = '1';
-        finalAuraData = null; finalBioStats = null; stopAudio(); 
+    hands.onResults((res) => {
+        // Emparejamos resoluciones para que lienzo y video encajen perfecto
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        
+        // LA MAGIA DE LA FLUIDEZ: En lugar de dibujar el video, limpiamos el cristal.
+        // El video corre por debajo a máxima velocidad nativa.
+        ctx.clearRect(0, 0, c.width, c.height);
+        
+        if (res.multiHandLandmarks && res.multiHandLandmarks[0]) {
+            const hand = res.multiHandLandmarks[0];
+            [4, 8, 12, 16, 20].forEach(id => {
+                const tip = hand[id]; const base = hand[id-1];
+                const tx = tip.x * c.width; const ty = tip.y * c.height;
+                const bx = base.x * c.width; const by = base.y * c.height;
+                const angle = Math.atan2(ty - by, tx - bx);
+                const dist = Math.sqrt(Math.pow(tx-bx, 2) + Math.pow(ty-by, 2));
+                
+                drawPhotorealNail(tx, ty, dist * 0.7, dist * conf.l, angle + Math.PI/2);
+            });
+        }
     });
 
-    btnNum.addEventListener('click', () => {
-        setTimeout(() => {
-            const tempCanvas = document.createElement('canvas'); tempCanvas.width = canvasElement.width; tempCanvas.height = canvasElement.height; const tempCtx = tempCanvas.getContext('2d');
-            
-            if(facingMode === 'user') { tempCtx.translate(tempCanvas.width, 0); tempCtx.scale(-1, 1); }
-            
-            tempCtx.drawImage(canvasElement, 0, 0); tempCtx.setTransform(1, 0, 0, 1, 0, 0); 
-            drawInfographicOverlay(tempCtx, finalAuraData, finalBioStats, tempCanvas.width, tempCanvas.height);
-            const dataURL = tempCanvas.toDataURL('image/png'); const link = document.createElement('a');
-            link.download = `AuraSens_Reporte_${finalAuraData.name.replace(/ /g, '_')}.png`; link.href = dataURL; link.click();
-        }, 50);
-    });
-
-    function drawInfographicOverlay(ctx, data, stats, width, height) {
+    function drawPhotorealNail(x, y, w, h, rot) {
         ctx.save();
-        ctx.fillStyle = 'rgba(15, 15, 18, 0.85)'; ctx.fillRect(0, height - 260, width, 260);
-        ctx.strokeStyle = data.color + '66'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, height - 260); ctx.lineTo(width, height - 260); ctx.stroke();
-        
-        ctx.font = 'normal 42px Garamond'; ctx.fillStyle = data.color; ctx.textAlign = 'center'; ctx.fillText(data.name, width / 2, height - 190);
-        ctx.font = '300 16px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText(`FRECUENCIA RESONANTE: ${data.hz} HZ`, width / 2, height - 155);
-        
-        ctx.font = '500 14px Courier New'; ctx.fillStyle = data.color;
-        ctx.fillText(`PULSO: ${stats.bpm} BPM`, width / 2 - 180, height - 115); ctx.fillText(`TEMP: ${stats.temp} °C`, width / 2, height - 115); ctx.fillText(`COHERENCIA: ${stats.coherence}%`, width / 2 + 180, height - 115);
-        
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(width / 2 - 200, height - 90); ctx.lineTo(width / 2 + 200, height - 90); ctx.stroke();
-        
-        ctx.font = 'italic 18px Garamond'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillText(data.desc, width / 2, height - 55);
-        ctx.font = '300 12px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.letterSpacing = "2px"; ctx.fillText("A U R A S E N S   |   B I O F E E D B A C K", width / 2, height - 20);
+        ctx.translate(x, y);
+        ctx.rotate(rot);
+        ctx.translate(0, -h * 0.05);
+
+        ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+
+        ctx.beginPath();
+        ctx.moveTo(-w/2, 0);
+        ctx.bezierCurveTo(-w/2, -h/1.5, -w/3, -h, 0, -h); 
+        ctx.bezierCurveTo(w/3, -h, w/2, -h/1.5, w/2, 0); 
+        ctx.bezierCurveTo(w/2, h/4, w/3, h/3, 0, h/3); 
+        ctx.bezierCurveTo(-w/3, h/3, -w/2, h/4, -w/2, 0); 
+
+        if (conf.m === 'custom_image' && isImageReady) {
+            ctx.clip(); 
+            ctx.drawImage(uploadedImage, -w/1.8, -h*1.1, w*1.1, h*1.5); 
+        } else {
+            ctx.fillStyle = conf.c;
+            ctx.fill();
+            ctx.clip();
+
+            if(conf.m === "marmol") {
+                ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1;
+                for(let i=0; i<3; i++){ ctx.beginPath(); ctx.moveTo(-w, -h+i*h); ctx.lineTo(w, h-i*h); ctx.stroke(); }
+            } else if(conf.m === "francesa") {
+                ctx.fillStyle = "#ffffff"; ctx.fillRect(-w, -h/2, w*2, h/4);
+            } else if(conf.m === "animal") {
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                for(let i=0; i<5; i++) { ctx.beginPath(); ctx.arc(Math.sin(i)*w/3, Math.cos(i)*h/4, w/5, 0, Math.PI*2); ctx.fill(); }
+            } else if(conf.m === "brillos" || conf.m === "galaxia") {
+                ctx.fillStyle = "white"; for(let i=0; i<15; i++) {
+                    ctx.globalAlpha = Math.random();
+                    ctx.fillRect(Math.random()*w-w/2, Math.random()*h-h/2, 2, 2);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        const volumeGrad = ctx.createRadialGradient(0, -h/4, w/4, 0, 0, w);
+        volumeGrad.addColorStop(0, "transparent"); volumeGrad.addColorStop(1, "rgba(0,0,0,0.5)");
+        ctx.fillStyle = volumeGrad; ctx.fill();
+
+        ctx.beginPath();
+        ctx.ellipse(-w/6, -h/2, w/8, h/3, Math.PI/12, 0, Math.PI * 2);
+        const shineGrad = ctx.createLinearGradient(-w/6, -h, -w/6, 0);
+        shineGrad.addColorStop(0, "rgba(255,255,255,0.7)"); shineGrad.addColorStop(1, "rgba(255,255,255,0.0)");
+        ctx.fillStyle = shineGrad; ctx.fill();
+
+        if (conf.m === "cromo") {
+            const chromeGrad = ctx.createLinearGradient(-w/2, -h/2, w/2, h/2);
+            chromeGrad.addColorStop(0, "rgba(255,255,255,0.6)"); chromeGrad.addColorStop(0.5, "transparent"); chromeGrad.addColorStop(1, "rgba(0,0,0,0.4)");
+            ctx.fillStyle = chromeGrad; ctx.fill();
+        }
+
         ctx.restore();
     }
 
-    function onResults(results) {
-        canvasElement.width = videoElement.videoWidth; canvasElement.height = videoElement.videoHeight;
-        canvasCtx.save(); canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+    // --- LÓGICA DE CÁMARA (ESPEJO DINÁMICO) ---
+    let isFrontCamera = true;
+    let cameraInstance = null;
+
+    function startCamera() {
+        if (cameraInstance) { cameraInstance.stop(); }
+        const mode = isFrontCamera ? 'user' : 'environment';
         
-        let alphaLevel = (appState === 'scanning') ? 0.4 : (appState === 'result' ? 0.75 : 0.25);
-        canvasCtx.fillStyle = `rgba(10, 10, 15, ${alphaLevel})`; 
-        canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
-            const face = results.multiFaceLandmarks[0];
-            const currentFaceX = face[1].x; const currentFaceY = face[1].y;
-            if (lastFaceX !== null) { let dx = -(currentFaceX - lastFaceX); let dy = (currentFaceY - lastFaceY); targetWindX = dx * 1.5; targetWindY = dy * 1.5; }
-            lastFaceX = currentFaceX; lastFaceY = currentFaceY;
-
-            const eyeDist = Math.hypot(face[33].x - face[263].x, face[33].y - face[263].y); 
-            const jawWidth = Math.hypot(face[132].x - face[361].x, face[132].y - face[361].y); 
-            const noseLen = Math.hypot(face[168].x - face[2].x, face[168].y - face[2].y); 
-            const mouthOpen = Math.hypot(face[13].x - face[14].x, face[13].y - face[14].y); 
-            
-            const bioHash = (eyeDist * 31337) + (jawWidth * 71993) + (noseLen * 104729) + (mouthOpen * 50021);
-            let hue = Math.floor(bioHash) % 360;
-            
-            if (appState === 'scanning') {
-                finalAuraData = getAuraMeaning(hue);
-                finalBioStats = { bpm: 60 + (Math.floor(bioHash) % 35), temp: (36.1 + ((Math.floor(bioHash) % 12) / 10)).toFixed(1), coherence: 75 + (Math.floor(bioHash) % 24) };
-            }
-
-            let currentAura = (appState === 'result' && finalAuraData) ? finalAuraData : getAuraMeaning(hue);
-            let drawColor = currentAura.color;
-
-            updateAndDrawEnvironment(drawColor);
-
-            const FACIAL_OUTLINE = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
-            canvasCtx.beginPath();
-            FACIAL_OUTLINE.forEach((index, i) => { const pt = face[index]; if (i === 0) canvasCtx.moveTo(pt.x * canvasElement.width, pt.y * canvasElement.height); else canvasCtx.lineTo(pt.x * canvasElement.width, pt.y * canvasElement.height); });
-            canvasCtx.closePath();
-
-            canvasCtx.shadowBlur = (appState === 'result') ? 20 : 10; canvasCtx.shadowColor = drawColor; canvasCtx.strokeStyle = drawColor; canvasCtx.lineWidth = (appState === 'result') ? 6 : 3; canvasCtx.stroke(); canvasCtx.shadowBlur = 0;
-
-            canvasCtx.lineWidth = 0.5; canvasCtx.strokeStyle = drawColor + "66"; canvasCtx.beginPath();
-            for (let i = 0; i < face.length - 15; i += 11) { canvasCtx.moveTo(face[i].x * canvasElement.width, face[i].y * canvasElement.height); canvasCtx.lineTo(face[i+4].x * canvasElement.width, face[i+4].y * canvasElement.height); canvasCtx.lineTo(face[i+8].x * canvasElement.width, face[i+8].y * canvasElement.height); }
-            canvasCtx.stroke();
+        // El espejo se aplica tanto al reproductor de video como al lienzo transparente
+        if(isFrontCamera) {
+            v.classList.remove('rear-camera');
+            c.classList.remove('rear-camera');
         } else {
-            targetWindX = 0; targetWindY = 0; updateAndDrawEnvironment('#FFDF73');
+            v.classList.add('rear-camera');
+            c.classList.add('rear-camera');
         }
-        canvasCtx.restore();
+
+        cameraInstance = new Camera(v, {
+            onFrame: async () => { await hands.send({image: v}); },
+            facingMode: mode,
+            width: 1280, 
+            height: 720
+        });
+        cameraInstance.start();
     }
 
-    const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.6 });
-    faceMesh.onResults(onResults);
-    
-    startCamera(); 
+    function toggleCamera() {
+        isFrontCamera = !isFrontCamera;
+        startCamera();
+    }
+
+    startCamera();
 </script>
 </body>
 </html>
